@@ -11,7 +11,7 @@ BUILD_TARGET = debug
 BUILD_PATH = build
 
 CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -pedantic
-LFLAGS = -Iinclude
+LFLAGS =
 
 ifeq ($(OPTION_BUILD_ASAN), true)
 CFLAGS += -fsanitize=address,undefined
@@ -36,7 +36,7 @@ else
 all: build
 endif
 
-build: $(LIB_OBJ) include/test/test.h
+build: $(LIB_OBJ) src/test.h
 	$(AR) rcs "$(BUILD_PATH)/$(LIB_NAME)" $(LIB_OBJ)
 
 test: build $(TEST_OBJ)

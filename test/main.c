@@ -1,6 +1,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <test/test.h>
+#include "../src/test.h"
 
-TEST_MAIN
+int main(void) {
+    test_init();
+
+    test_run_all();
+
+    return 0;
+}
