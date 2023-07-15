@@ -1,4 +1,4 @@
-#include "../src/test.h"
+#include <test/test.h>
 
 SUIT(assert_suit, NULL, NULL);
 
