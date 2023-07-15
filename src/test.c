@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "test.h"
+#include <test/test.h>
 
 #if defined(__clang__) || defined(__gcc__)
 // see: https://stackoverflow.com/questions/16552710/how-do-you-get-the-start-and-end-addresses-of-a-custom-elf-section
@@ -45,8 +45,6 @@ struct {
 
 /* Memory management */
 static inline void *test_realloc(void *base, uintptr_t size) {
-    TEST_ASSERT(base != NULL);
-
     void *result = realloc(base, size);
     if (result == NULL) {
         perror("test: ");
@@ -234,8 +232,8 @@ void test_intern_log_assertion_failed(const test_intern_TestInfo *test_info) {
     test_log_write_with_status(TEST_STATUS_PENDING,
                                "Comparison failed: \"%s\" != \"%s\"\n",
                                value_one, value_two);
-    test_log_write_with_status(TEST_STATUS_CONTINUED, "% 18c %s(%s, %s)\n", ' ',
-                               macro_name, value_one_macro, value_two_macro);
+    test_log_write_with_status(TEST_STATUS_CONTINUED, "% 18c %s(%s, %s) @ %u\n", ' ',
+                               macro_name, value_one_macro, value_two_macro, line);
 }
 
 void test_run_case(const char *suit_name, const char *case_name) {
