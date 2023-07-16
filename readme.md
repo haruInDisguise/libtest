@@ -14,11 +14,11 @@ Yet another tiny unit testing framework for C.
 - Simplicity. This library is very lightweight and should (hopefully) be easily extendable/hackable.
 
 ## TODO
-[] Colored output
-[] Logging to a file/custom stream, instead of stdout/stderr
-[] Fully implement the possibility to skip individual tests/suits
-[] Timing related information
-[] "What does a uint testing framework really need?" i.e. the percentage of partially successful tests is not that interesting?
+[ ] Colored output
+[ ] Logging to a file/custom stream, instead of stdout/stderr
+[ ] Fully implement the possibility to skip individual tests/suits
+[ ] Timing related information
+[ ] "What does a uint testing framework really need?" i.e. the percentage of partially successful tests is not that interesting?
 
 ## Building
 
@@ -27,14 +27,14 @@ Just run '''make''' to build. This will create a static library under the '''bui
 tests.
 Build and linking example:
 
-''' bash
+``` bash
 make
 clang -Iinclude main.c build/libtest.a -o run_tests
-'''
+```
 
 ## Getting started
 
-''' c
+``` c
 #include <test/test.h>
 
 void example_setup(void) {
@@ -53,7 +53,7 @@ TEST(example_suit, test_one) {
 }
 
 TEST_MAIN
-'''
+```
 
 ## Resouces
 - https://stackoverflow.com/questions/16552710/how-do-you-get-the-start-and-end-addresses-of-a-custom-elf-section
