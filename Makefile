@@ -2,15 +2,15 @@ CC = clang
 AR = ar
 
 OPTION_BUILD_TESTS ?= true
-OPTION_BUILD_DEBUG ?= true
-OPTION_BUILD_ASAN ?= true
+OPTION_BUILD_DEBUG ?= false
+OPTION_BUILD_ASAN ?= false
 
 LIB_NAME = libtest.a
 
-BUILD_TARGET = debug
 BUILD_PATH = build
 
-CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -pedantic
+CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -pedantic \
+		 -Iinclude
 LFLAGS =
 
 ifeq ($(OPTION_BUILD_ASAN), true)
@@ -19,7 +19,7 @@ LFLAGS += -fsanitize=address,undefined
 endif
 
 ifeq ($(OPTION_BUILD_DEBUG), true)
-CFLAGS += -O0 -g3
+CFLAGS += -O0 -g3 -DTEST_DEBUG
 else
 CFLAGS += -O2 -DNDEBUG
 endif
@@ -36,13 +36,13 @@ else
 all: build
 endif
 
-build: $(LIB_OBJ) src/test.h
+build: $(LIB_OBJ) include/test/test.h
 	$(AR) rcs "$(BUILD_PATH)/$(LIB_NAME)" $(LIB_OBJ)
 
 test: build $(TEST_OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) $(TEST_OBJ) $(BUILD_PATH)/$(LIB_NAME) -o build/tests
+	$(CC) $(CFLAGS) $(LFLAGS) $(TEST_OBJ) $(BUILD_PATH)/$(LIB_NAME) -o build/main
 
-dev:
+dev: clean
 	@mkdir -p $(BUILD_PATH)
 	bear --output $(BUILD_PATH)/compile_commands.json -- make
 
@@ -54,4 +54,4 @@ clean:
 $(LIB_OBJ) $(TEST_OBJ): $(BUILD_PATH)/%.o: %.c
 	echo $(TEST_OBJ)
 	@mkdir -p $(dir $@)
-	$(CC) -c $(CFLAGS) $< -o $@ -Iinclude
+	$(CC) -c $(CFLAGS) $< -o $@
