@@ -1,4 +1,3 @@
-
 #ifndef _TEST_H_
 #define _TEST_H_
 
@@ -13,13 +12,13 @@
 #endif
 
 #if !defined(NDEBUG) || defined(DEBUG)
-#define TEST_ASSERT(condition)                                                 \
-    do {                                                                       \
-        if (!(condition)) {                                                    \
-            printf("Assertion failed: [%s %s():%d] \"%s\"\n", __FILE__,        \
-                   __func__, __LINE__, #condition);                            \
-            TEST_BUILTIN_TRAP;                                                 \
-        }                                                                      \
+#define TEST_ASSERT(condition)                                                              \
+    do {                                                                                    \
+        if (!(condition)) {                                                                 \
+            printf("Assertion failed: [%s %s():%d] \"%s\"\n", __FILE__, __func__, __LINE__, \
+                   #condition);                                                             \
+            TEST_BUILTIN_TRAP;                                                              \
+        }                                                                                   \
     } while (0)
 #else
 #define TEST_ASSERT(condition)
@@ -49,19 +48,20 @@
 
 /// Used internally. The result of a single test case
 typedef enum {
-    TEST_RESULT_OK,
-    TEST_RESULT_PARTIALLY_OK,
-    TEST_RESULT_SKIPPED,
-    TEST_RESULT_FAILED,
+    test_intern_ResultOk,
+    test_intern_ResultPartiallyOk,
+    test_intern_ResultSkipped,
+    test_intern_ResultFailed,
 } test_intern_Result;
 
 /// Used internally. Represents 'state' of the testing process.
 typedef enum {
-    TEST_STATUS_PENDING,
-    TEST_STATUS_RESULT,
-    TEST_STATUS_START,
-    TEST_STATUS_END,
-    TEST_STATUS_CONTINUED,
+    test_intern_StatusEmpty,
+    test_intern_StatusPending,
+    test_intern_StatusResult,
+    test_intern_StatusStart,
+    test_intern_StatusEnd,
+    test_intern_StatusContinued,
 } test_intern_Status;
 
 typedef struct {
@@ -100,10 +100,7 @@ typedef struct {
     test_TeardownFunction teardown_function;
 } test_intern_Suit;
 
-/// Initialize the library
 extern void test_init(void);
-
-/// Exit the library
 extern void test_exit(void);
 
 /// Log things to the stdout stream (stdout by default)
@@ -137,97 +134,91 @@ extern void test_run_case(const char *suit_name, const char *case_name);
 /// Start executing all suits and there tests
 extern void test_run_all(void);
 
-#define TEST_MAIN                                                              \
-    int main(void) {                                                           \
-        test_init();                                                           \
-        test_run_all();                                                        \
-        test_exit();                                                           \
-        return 0;                                                              \
-    }
-
 /// Macro for defining a new suit. Note that you have to define at least one
 /// suit
-#define SUIT(suit_name, setup, teardown)                                       \
-    const test_intern_Suit _TEST_SECTION("_test_suit_section")                 \
-        test_suit_##suit_name = {                                              \
-            .name = #suit_name,                                                \
-            .teardown_function = teardown,                                     \
-            .setup_function = setup,                                           \
+#define SUIT(suit_name, setup, teardown)                                                 \
+    const test_intern_Suit _TEST_SECTION("_test_suit_section") test_suit_##suit_name = { \
+        .name = #suit_name,                                                              \
+        .teardown_function = teardown,                                                   \
+        .setup_function = setup,                                                         \
     }
 
 /// Macro for creating a new test case.
 /// @param suit_name The name of the suit this test case should be added to.
 /// @param test_name The name of this test case
-#define TEST(suit_name_, test_name)                                            \
-    static void test_##suit_name_##_##test_name(test_intern_TestInfo *_info);  \
-    const test_intern_TestCase _TEST_SECTION("_test_case_section")             \
-        test_case_##test_name##_##suit_name = {                                \
-            .name = #test_name,                                                \
-            .line = __LINE__,                                                  \
-            .file_name = __FILE__,                                             \
-            .suit_name = #suit_name_,                                          \
-            .function = test_##suit_name_##_##test_name};                      \
-    static void test_##suit_name_##_##test_name(                               \
-        TEST_UNUSED test_intern_TestInfo *_test_info)
+#define TEST(suit_name_, test_name)                                                          \
+    static void test_##suit_name_##_##test_name(test_intern_TestInfo *_info);                \
+    const test_intern_TestCase _TEST_SECTION("_test_case_section")                           \
+        test_case_##test_name##_##suit_name = {.name = #test_name,                           \
+                                               .line = __LINE__,                             \
+                                               .file_name = __FILE__,                        \
+                                               .suit_name = #suit_name_,                     \
+                                               .function = test_##suit_name_##_##test_name}; \
+    static void test_##suit_name_##_##test_name(TEST_UNUSED test_intern_TestInfo *_test_info)
+
+#define TEST_MAIN                      \
+    int main(void) {                   \
+        test_init();                   \
+        test_run_all();                \
+        test_exit();                   \
+        return 0;                      \
+    }
 
 // FIXME: Figure out a prettier solution to determin the type of a variable.
-#define _TEST_GET_TYPE_FMT(X)                                                  \
-    _Generic((X),                                                              \
-            char: "%c",                                                        \
-            unsigned char: "%uz",                                              \
-            short: "%h",                                                       \
-            unsigned short: "%uh",                                             \
-            long: "%z",                                                        \
-            unsigned long: "%uz",                                              \
-            int : "%d",                                                        \
-            unsigned int : "%u",                                               \
-            long long: "%z",                                                   \
-            unsigned long long: "%zu",                                         \
-            float: "%f",                                                       \
-            double: "%f",                                                      \
-            char*: "%s",                                                       \
-            default: "%p")
+#define _TEST_GET_TYPE_FMT(X)      \
+    _Generic((X),                  \
+        char: "%c",                \
+        unsigned char: "%uz",      \
+        short: "%h",               \
+        unsigned short: "%uh",     \
+        long: "%z",                \
+        unsigned long: "%uz",      \
+        int: "%d",                 \
+        unsigned int: "%u",        \
+        long long: "%z",           \
+        unsigned long long: "%zu", \
+        float: "%f",               \
+        double: "%f",              \
+        char *: "%s",              \
+        default: "%p")
 
 // Helper macro for writing a string to <buffer>
-#define _TEST_WRITE_STRING(buffer, size, format, value)                        \
-    snprintf(buffer, size, format, value)
+#define _TEST_WRITE_STRING(buffer, size, format, value) snprintf(buffer, size, format, value)
 
 // Helper macro for resolving the type of <value> and writing it to <buffer>
-#define _TEST_WRITE_VALUE_TO_BUFFER(buffer, size, value)                       \
+#define _TEST_WRITE_VALUE_TO_BUFFER(buffer, size, value) \
     _TEST_WRITE_STRING(buffer, size, _TEST_GET_TYPE_FMT(value), value)
 
 // Part used in CHECK assertion macros
-#define _TEST_ACTION_CHECK                                                     \
-    do {                                                                       \
-        _test_info->result = TEST_RESULT_PARTIALLY_OK;                         \
-        test_intern_log_assertion_failed(_test_info);                          \
-        continue;                                                              \
+#define _TEST_ACTION_CHECK                             \
+    do {                                               \
+        _test_info->result = test_intern_ResultPartiallyOk; \
+        test_intern_log_assertion_failed(_test_info);  \
+        continue;                                      \
     } while (0)
 
 // Part used in ASSERT assertion macros
-#define _TEST_ACTION_ASSERT                                                    \
-    do {                                                                       \
-        _test_info->result = TEST_RESULT_FAILED;                               \
-        test_intern_log_assertion_failed(_test_info);                          \
-        return;                                                                \
+#define _TEST_ACTION_ASSERT                           \
+    do {                                              \
+        _test_info->result = test_intern_ResultFailed;      \
+        test_intern_log_assertion_failed(_test_info); \
+        return;                                       \
     } while (0)
 
 // Main Assertion Macro
-#define _TEST_CMP(one, two, macro, CMP_FUNC, ASSERT_TYPE_ACTION)               \
-    do {                                                                       \
-        if (!CMP_FUNC(one, two)) {                                             \
-            _test_info->assertion_info.line = __LINE__;                        \
-            _test_info->assertion_info.macro_name = #macro;                    \
-            _test_info->assertion_info.value_one_macro = #one;                 \
-            _test_info->assertion_info.value_two_macro = #two;                 \
-            _TEST_WRITE_VALUE_TO_BUFFER(                                       \
-                _test_info->assertion_info.value_one_buffer,                   \
-                TEST_VALUE_BUFFER_SIZE, one);                                  \
-            _TEST_WRITE_VALUE_TO_BUFFER(                                       \
-                _test_info->assertion_info.value_two_buffer,                   \
-                TEST_VALUE_BUFFER_SIZE, two);                                  \
-            ASSERT_TYPE_ACTION;                                                \
-        }                                                                      \
+#define _TEST_CMP(one, two, macro, CMP_FUNC, ASSERT_TYPE_ACTION)                     \
+    do {                                                                             \
+        if (!CMP_FUNC(one, two)) {                                                   \
+            _test_info->assertion_info.line = __LINE__;                              \
+            _test_info->assertion_info.macro_name = #macro;                          \
+            _test_info->assertion_info.value_one_macro = #one;                       \
+            _test_info->assertion_info.value_two_macro = #two;                       \
+            _TEST_WRITE_VALUE_TO_BUFFER(_test_info->assertion_info.value_one_buffer, \
+                                        TEST_VALUE_BUFFER_SIZE, one);                \
+            _TEST_WRITE_VALUE_TO_BUFFER(_test_info->assertion_info.value_two_buffer, \
+                                        TEST_VALUE_BUFFER_SIZE, two);                \
+            ASSERT_TYPE_ACTION;                                                      \
+        }                                                                            \
     } while (0)
 
 // clang-format off
@@ -244,7 +235,7 @@ extern void test_run_all(void);
 #define _TEST_CMP_STR_NE(one, two) (strcmp(one, two) != 0)
 
 // Assert Macros
-#define test_assert(one)                      _TEST_CMP(one, 1, assert_eq, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
+#define test_assert(one)                 _TEST_CMP(one, 1, assert_eq, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
 #define test_assert_eq(one, two)         _TEST_CMP(one, two, assert_eq, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
 #define test_assert_ne(one, two)         _TEST_CMP(one, two, assert_ne, _TEST_CMP_NE, _TEST_ACTION_ASSERT)
 
