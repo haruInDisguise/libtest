@@ -1,18 +1,20 @@
 #ifndef _TEST_H_
 #define _TEST_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-#if defined(__has_builtin) && __has_builtin(__builtin_trap)
-#define TEST_BUILTIN_TRAP __builtin_trap()
+#if defined(TEST_DEBUG)
+
+#if defined(__has_builtin) && __has_builtin(__builtin_debugtrap)
+#define TEST_BUILTIN_TRAP __builtin_debugtrap()
 #else
 #define TEST_BUILTIN_TRAP asm("int3")
 #endif
 
-#if !defined(NDEBUG) || defined(DEBUG)
-#define TEST_ASSERT(condition)                                                              \
+#define test_intern_assert(condition)                                                       \
     do {                                                                                    \
         if (!(condition)) {                                                                 \
             printf("Assertion failed: [%s %s():%d] \"%s\"\n", __FILE__, __func__, __LINE__, \
@@ -21,14 +23,8 @@
         }                                                                                   \
     } while (0)
 #else
-#define TEST_ASSERT(condition)
-#endif
-
-#if defined(__has_builtin) && __has_builtin(__builtin_trap)
-#define TEST_BUILTIN_TRAP __builtin_trap()
-#else
-#define TEST_BUILTIN_TRAP asm("int3")
-#endif
+#define test_intern_assert(condition)
+#endif // TEST_DEBUG
 
 // TODO: Add manual-registration fallback
 #if defined(__clang__) || defined(__gcc__)
@@ -69,8 +65,8 @@ typedef struct {
         uint32_t line;
         char value_one_buffer[TEST_VALUE_BUFFER_SIZE];
         char value_two_buffer[TEST_VALUE_BUFFER_SIZE];
-        char *value_one_macro;
-        char *value_two_macro;
+        char *macro_value_one;
+        char *macro_value_two;
         char *macro_name;
     } assertion_info;
 
@@ -93,14 +89,25 @@ typedef struct {
 } test_intern_TestCase;
 
 typedef struct {
-    uint32_t total_tests;
-    test_intern_TestCase **tests;
     char *name;
+    test_intern_TestCase **tests;
+    uint32_t total_tests;
     test_SetupFunction setup_function;
     test_TeardownFunction teardown_function;
 } test_intern_Suit;
 
-extern void test_init(void);
+typedef struct {
+    bool output_is_colored;
+    bool verbose;
+
+    FILE *output_stream;
+    char *output_stream_path;
+
+    char **target_suits;
+    char **target_cases;
+} test_Options;
+
+extern bool test_init(int argc, char **argv);
 extern void test_exit(void);
 
 /// Log things to the stdout stream (stdout by default)
@@ -156,12 +163,12 @@ extern void test_run_all(void);
                                                .function = test_##suit_name_##_##test_name}; \
     static void test_##suit_name_##_##test_name(TEST_UNUSED test_intern_TestInfo *_test_info)
 
-#define TEST_MAIN                      \
-    int main(void) {                   \
-        test_init();                   \
-        test_run_all();                \
-        test_exit();                   \
-        return 0;                      \
+#define TEST_MAIN       \
+    int main(int argc, char **argv) {    \
+        test_init(argc, argv);    \
+        test_run_all(); \
+        test_exit();    \
+        return 0;       \
     }
 
 // FIXME: Figure out a prettier solution to determin the type of a variable.
@@ -190,19 +197,19 @@ extern void test_run_all(void);
     _TEST_WRITE_STRING(buffer, size, _TEST_GET_TYPE_FMT(value), value)
 
 // Part used in CHECK assertion macros
-#define _TEST_ACTION_CHECK                             \
-    do {                                               \
+#define _TEST_ACTION_CHECK                                  \
+    do {                                                    \
         _test_info->result = test_intern_ResultPartiallyOk; \
-        test_intern_log_assertion_failed(_test_info);  \
-        continue;                                      \
+        test_intern_log_assertion_failed(_test_info);       \
+        continue;                                           \
     } while (0)
 
 // Part used in ASSERT assertion macros
-#define _TEST_ACTION_ASSERT                           \
-    do {                                              \
-        _test_info->result = test_intern_ResultFailed;      \
-        test_intern_log_assertion_failed(_test_info); \
-        return;                                       \
+#define _TEST_ACTION_ASSERT                            \
+    do {                                               \
+        _test_info->result = test_intern_ResultFailed; \
+        test_intern_log_assertion_failed(_test_info);  \
+        return;                                        \
     } while (0)
 
 // Main Assertion Macro
@@ -211,8 +218,8 @@ extern void test_run_all(void);
         if (!CMP_FUNC(one, two)) {                                                   \
             _test_info->assertion_info.line = __LINE__;                              \
             _test_info->assertion_info.macro_name = #macro;                          \
-            _test_info->assertion_info.value_one_macro = #one;                       \
-            _test_info->assertion_info.value_two_macro = #two;                       \
+            _test_info->assertion_info.macro_value_one = #one;                       \
+            _test_info->assertion_info.macro_value_one = #two;                       \
             _TEST_WRITE_VALUE_TO_BUFFER(_test_info->assertion_info.value_one_buffer, \
                                         TEST_VALUE_BUFFER_SIZE, one);                \
             _TEST_WRITE_VALUE_TO_BUFFER(_test_info->assertion_info.value_two_buffer, \
@@ -234,19 +241,24 @@ extern void test_run_all(void);
 #define _TEST_CMP_STR_EQ(one, two) (strcmp(one, two) == 0)
 #define _TEST_CMP_STR_NE(one, two) (strcmp(one, two) != 0)
 
+#define _TEST_CMP_MEM_EQ(one, two, size) (memcmp(one, two, size) == 0)
+#define _TEST_CMP_MEM_NE(one, two, size) (memcmp(one, two, size) != 0)
+
 // Assert Macros
-#define test_assert(one)                 _TEST_CMP(one, 1, assert_eq, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
+#define test_assert(one)                 _TEST_CMP(one, 1, assert, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
 #define test_assert_eq(one, two)         _TEST_CMP(one, two, assert_eq, _TEST_CMP_EQ, _TEST_ACTION_ASSERT)
 #define test_assert_ne(one, two)         _TEST_CMP(one, two, assert_ne, _TEST_CMP_NE, _TEST_ACTION_ASSERT)
 
-#define test_assert_str_eq(one, two)     _TEST_CMP(one, two, assert_str_eq, _TEST_CMP_STR_EQ, _TEST_ACTION_ASSERT)
-#define test_assert_str_ne(one, two)     _TEST_CMP(one, two, assert_str_ne,_TEST_CMP_STR_NE, _TEST_ACTION_ASSERT)
+#define test_assert_string_eq(one, two)         _TEST_CMP(one, two, assert_str_eq, _TEST_CMP_STR_EQ, _TEST_ACTION_ASSERT)
+#define test_assert_string_ne(one, two)         _TEST_CMP(one, two, assert_str_ne,_TEST_CMP_STR_NE, _TEST_ACTION_ASSERT)
+#define test_assert_memory_eq(one, two, size)   _TEST_CMP(one, two, assert_str_eq, _TEST_CMP_STR_EQ, _TEST_ACTION_ASSERT)
+#define test_assert_memory_ne(one, two, size)   _TEST_CMP(one, two, assert_str_ne,_TEST_CMP_STR_NE, _TEST_ACTION_ASSERT)
 
 // Check Macros
-#define test_check_str_eq(one, two)     _TEST_CMP(one, two, check_str_eq,_TEST_CMP_STR_EQ, _TEST_ACTION_CHECK)
-#define test_check_str_ne(one, two)     _TEST_CMP(one, two, check_str_ne,_TEST_CMP_STR_NE, _TEST_ACTION_CHECK)
+#define test_check_string_eq(one, two)     _TEST_CMP(one, two, check_str_eq,_TEST_CMP_STR_EQ, _TEST_ACTION_CHECK)
+#define test_check_string_ne(one, two)     _TEST_CMP(one, two, check_str_ne,_TEST_CMP_STR_NE, _TEST_ACTION_CHECK)
 
-#define test_check(one)                      _TEST_CMP(one, 1, check_eq,_TEST_CMP_EQ, _TEST_ACTION_CHECK)
+#define test_check(one)                 _TEST_CMP(one, 1, check_eq,_TEST_CMP_EQ, _TEST_ACTION_CHECK)
 #define test_check_eq(one, two)         _TEST_CMP(one, two, check_eq,_TEST_CMP_EQ, _TEST_ACTION_CHECK)
 #define test_check_ne(one, two)         _TEST_CMP(one, two, check_ne,_TEST_CMP_NE, _TEST_ACTION_CHECK)
 
