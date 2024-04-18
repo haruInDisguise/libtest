@@ -1,0 +1,5 @@
+If:
+  PathMatch: include/test/test.h
+
+CompileFlags:
+  Add: [-xc, -DYAK_TEST_IMPLEMENTATION, -DYAK_TEST_DEBUG]

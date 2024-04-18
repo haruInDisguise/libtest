@@ -1,15 +1,11 @@
 CC = clang
-AR = ar
 
-OPTION_BUILD_TESTS ?= true
-OPTION_BUILD_DEBUG ?= false
-OPTION_BUILD_ASAN ?= false
-
-LIB_NAME = libtest.a
+OPTION_BUILD_DEBUG ?= true
+OPTION_BUILD_ASAN ?= true
 
 BUILD_PATH = build
 
-CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -pedantic \
+CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -Wpedantic \
 		 -Iinclude
 LFLAGS =
 
@@ -21,37 +17,24 @@ endif
 ifeq ($(OPTION_BUILD_DEBUG), true)
 CFLAGS += -O0 -g3 -DTEST_DEBUG
 else
-CFLAGS += -O2 -DNDEBUG
+CFLAGS += -O2
 endif
 
-LIB_SRC = src/test.c
-LIB_OBJ := $(patsubst %.c,$(BUILD_PATH)/%.o,$(LIB_SRC))
-
-TEST_SRC = test/main.c test/test_assert.c test/test_check.c
+TEST_SRC = test/main.c test/test_assert.c
 TEST_OBJ := $(patsubst %.c,$(BUILD_PATH)/%.o,$(TEST_SRC))
 
-ifeq ($(OPTION_BUILD_TESTS), true)
-all: test
-else
-all: build
-endif
+test: $(TEST_OBJ)
+	$(CC) $(LFLAGS) $(TEST_OBJ) -o build/main
 
-build: $(LIB_OBJ) include/test/test.h
-	$(AR) rcs "$(BUILD_PATH)/$(LIB_NAME)" $(LIB_OBJ)
-
-test: build $(TEST_OBJ)
-	$(CC) $(CFLAGS) $(LFLAGS) $(TEST_OBJ) $(BUILD_PATH)/$(LIB_NAME) -o build/main
-
-dev: clean
+dev:: clean
 	@mkdir -p $(BUILD_PATH)
-	bear --output $(BUILD_PATH)/compile_commands.json -- make
+	bear --output $(BUILD_PATH)/compile_commands.json -- $(MAKE)
 
 clean:
 	rm -rf build
 
-.PHONY: clean all build test dev
+.PHONY: clean test dev
 
-$(LIB_OBJ) $(TEST_OBJ): $(BUILD_PATH)/%.o: %.c
-	echo $(TEST_OBJ)
+$(TEST_OBJ): $(BUILD_PATH)/%.o: %.c include/test/test.h
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) $< -o $@
