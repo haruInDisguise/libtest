@@ -34,6 +34,7 @@ clean:
 	rm -rf build
 
 .PHONY: clean test dev
+.SUFFIXES:
 
 $(TEST_OBJ): $(BUILD_PATH)/%.o: %.c include/test/test.h
 	@mkdir -p $(dir $@)
