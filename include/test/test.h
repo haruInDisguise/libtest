@@ -13,6 +13,7 @@
 /// - Automatic test registration
 
 #include <stdbool.h>
+#include <unistd.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -124,7 +125,9 @@ extern void yak_test_reset(void);
 /// Generate status report.
 extern void yak_test_report(void);
 
-/// Manually register a test case
+/// Manually register a suit case
+/// TODO: There is no way to optain an instance of yak_test_intern_Suit, i.e.
+/// it is impossible to correctly call this function.
 extern bool yak_test_register_suit(
     yak_test_intern_Suit *yak_test_suit, yak_test_SetupFunction setup_func,
     yak_test_TeardownFunction teardown_func
@@ -143,6 +146,12 @@ extern bool yak_test_run_case(const char *suit_name, const char *case_name);
 
 /// Start executing all suits and there tests
 extern void yak_test_run_all(void);
+
+/// Get option: Output file
+extern const char *yak_test_option_get_output_path(void);
+
+/// Get option: Filter
+extern const char *yak_test_option_get_filter(void);
 
 /// Macro for defining a new suit. Note that you have to define at least one
 /// suit
@@ -179,7 +188,9 @@ extern void yak_test_run_all(void);
         return 0;                     \
     }
 
-// FIXME: Figure out a prettier solution to determin the type of a variable.
+// FIXME: I am really not happy about the generic aspect here. A type mismatch produces a
+// (in this context) somewhat akward warning message (invalid printf format string).
+// It might be better to move to an explicit construct (i.e. a macro for each primitive type).
 #define _YAK_TEST_GET_TYPE_FMT(X)  \
     _Generic(                      \
         (X),                       \
@@ -317,9 +328,9 @@ static struct {
     // Argument flag values as they are being read from the commandline
     // before any parsing takes place
     struct {
-        char *colored_flag;
-        char *output_flag;
-        char *filter_flag;
+        char *colored_value;
+        char *output_value;
+        char *filter_value;
     } raw;
 
     FILE *output_stream;
@@ -428,7 +439,7 @@ static void yak_test_runner_report(void) {
             : 0;
 
     // clang-format off
-    yak_test_log_write_with_status(yak_test_intern_StatusEnd, "=== Testing Results ===\n");
+    yak_test_log_write_with_status(yak_test_intern_StatusEnd,       "=== Testing Results ===\n");
     yak_test_log_write_with_status(yak_test_intern_StatusContinued, "Successful:   %u/%u (%u%%)\n", yak_test_runner.tests_executed, yak_test_register.total_tests, tests_executed_percent);
     yak_test_log_write_with_status(yak_test_intern_StatusContinued, "- Totally   : %u - %u%%\n", yak_test_runner.tests_successful, tests_successful_percent);
     yak_test_log_write_with_status(yak_test_intern_StatusContinued, "- Partially : %u - %u%%\n", yak_test_runner.tests_partially, tests_partial_percent);
@@ -628,7 +639,7 @@ static bool yak_test_match_wildcard(char *const match, char *const pattern) {
             // '*' matched one character
             match_seek_ptr = star_match_index + 1;
             pattern_seek_ptr = star_pattern_index + 1;
-            star_pattern_index++;
+            star_match_index++;
             continue;
         }
 
@@ -658,23 +669,23 @@ static bool yak_test_parse_arguments(int argc, char **argv) {
             options.print_list = true;
         } else if (strcmp(argv[i], "--colored") == 0) {
             is_valid_argument = true;
-            second_argument_target = &options.raw.colored_flag;
+            second_argument_target = &options.raw.colored_value;
         } else if (strcmp(argv[i], "--output") == 0) {
             is_valid_argument = true;
-            second_argument_target = &options.raw.output_flag;
+            second_argument_target = &options.raw.output_value;
         } else if (strcmp(argv[i], "--filter") == 0) {
             is_valid_argument = true;
-            second_argument_target = &options.raw.filter_flag;
+            second_argument_target = &options.raw.filter_value;
         }
 
         if (is_valid_argument == false) {
-            fprintf(stderr, "[yak_test] unrecognized flag: %s\n", argv[i]);
+            fprintf(stderr, "unrecognized flag: %s\n", argv[i]);
             return false;
         }
 
         if (second_argument_target != NULL) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "[yak_test] missing option for flag: %s\n", argv[i]);
+                fprintf(stderr, "missing option for flag: %s\n", argv[i]);
                 return false;
             }
 
@@ -687,13 +698,18 @@ static bool yak_test_parse_arguments(int argc, char **argv) {
 }
 
 static bool yak_test_parse_options(void) {
-    char *option = options.raw.output_flag;
+    char *option = options.raw.output_value;
     char *flag = "--output";
     if (option != NULL) {
-        FILE *output_file = fopen(option, "w+");
+        if(access(option, F_OK) == 0) {
+            fprintf(stderr, "Output file already exists: %s\n", option);
+            return false;
+        }
+
+        FILE *output_file = fopen(option, "w");
         if (output_file == NULL) {
-            fprintf(options.output_stream, "Failed to open file: %s: %s\n", option, strerror(errno));
-            goto invalid_option;
+            fprintf(stderr, "Failed to open output file: %s: %s\n", option, strerror(errno));
+            return false;
         }
 
         options.output_stream = output_file;
@@ -701,9 +717,9 @@ static bool yak_test_parse_options(void) {
         options.output_stream = stdout;
     }
 
-    option = options.raw.colored_flag;
+    option = options.raw.colored_value;
     flag = "--colored";
-    if (options.raw.colored_flag != NULL) {
+    if (options.raw.colored_value != NULL) {
         if (strcmp(option, "auto") == 0) {
             // FIXME: fileno() returns -1 on error, which might cause issues with isatty
             options.colored =
@@ -719,13 +735,13 @@ static bool yak_test_parse_options(void) {
         options.colored = false;
     }
 
-    option = options.raw.filter_flag;
+    option = options.raw.filter_value;
     flag = "--filter";
     if (option == NULL) {
         /* TODO */
     }
 
-    option = options.raw.colored_flag;
+    option = options.raw.colored_value;
     flag = "--list";
     if (options.print_list == true) {
         /* TODO */
@@ -733,7 +749,7 @@ static bool yak_test_parse_options(void) {
 
     return true;
 invalid_option:
-    fprintf(options.output_stream, "invalid option for flag '%s': %s\n", flag, option);
+    fprintf(stderr, "invalid option for flag '%s': %s\n", flag, option);
     return false;
 }
 
@@ -798,7 +814,7 @@ bool yak_test_init(int argc, char **argv) {
 }
 
 void yak_test_exit(void) {
-    if (options.output_stream != NULL && options.raw.output_flag != NULL) {
+    if (options.output_stream != NULL && options.raw.output_value != NULL) {
         fclose(options.output_stream);
     }
 
