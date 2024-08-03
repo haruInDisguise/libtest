@@ -1,4 +1,4 @@
-CC = clang
+CC ?= clang
 
 BUILD_CONFIG ?= debug
 # In release builds, this option has no effect
@@ -6,7 +6,7 @@ BUILD_ASAN ?= true
 
 BUILD_PATH = build
 
-CFLAGS = -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -Wpedantic \
+CFLAGS = -std=c17 -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -Wpedantic \
 		 -Iinclude
 LFLAGS =
 
