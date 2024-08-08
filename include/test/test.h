@@ -12,7 +12,7 @@
 /// - [xUnit](https://en.wikipedia.org/wiki/XUnit) inspired framework
 /// - Automatic test registration
 
-#define _POSIX_SOURCE /* fileno() */
+#define _GNU_SOURCE /* fileno() */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -43,8 +43,9 @@
 #endif // TEST_DEBUG
 
 #if defined(__clang__) || defined(__GNUC__)
-    #define _TEST_SECTION(name) __attribute__((used, section(name)))
-    #define TEST_UNUSED         __attribute__((unused))
+    #define _TEST_CASE_SECTION __attribute__((used, section("test_case_section")))
+    #define _TEST_SUIT_SECTION __attribute__((used, section("test_suit_section")))
+    #define TEST_UNUSED        __attribute__((unused))
 #else
     #error "Compiler not supported :^("
 #endif
@@ -60,24 +61,30 @@
 
 /// Macro for defining a new suit. Note that you have to define at least one
 /// suit
-#define SUIT(suit_name, setup, teardown)                                                 \
-    const test_intern_Suit _TEST_SECTION("_test_suit_section") test_suit_##suit_name = { \
-        .name = #suit_name,                                                              \
-        .teardown_function = teardown,                                                   \
-        .setup_function = setup,                                                         \
-    }
+#define SUIT(suit_name, setup, teardown)                        \
+    static const test_intern_SuitData test_suit_##suit_name = { \
+        .name = #suit_name,                                     \
+        .teardown_function = teardown,                          \
+        .setup_function = setup,                                \
+    };                                                          \
+    _TEST_SUIT_SECTION                                          \
+    const test_intern_SuitData *test_suit_ptr_##suit_name = &test_suit_##suit_name
 
 /// Macro for creating a new test case.
 /// @param suit_name The name of the suit this test case should be added to.
 /// @param test_name The name of this test case
-#define TEST(suit_name_, test_name)                                                            \
-    static void test_##suit_name_##_##test_name(test_intern_TestInfo *_info);                  \
-    const test_intern_TestCase _TEST_SECTION("_test_case_section")                             \
-        test_case_##test_name##_##suit_name = { .name = #test_name,                            \
-                                                .line = __LINE__,                              \
-                                                .file_name = __FILE__,                         \
-                                                .suit_name = #suit_name_,                      \
-                                                .function = test_##suit_name_##_##test_name }; \
+#define TEST(suit_name_, test_name)                                           \
+    static void test_##suit_name_##_##test_name(test_intern_TestInfo *_info); \
+    static const test_intern_TestCase test_case_##test_name##_##suit_name = { \
+        .name = #test_name,                                                   \
+        .line = __LINE__,                                                     \
+        .file_name = __FILE__,                                                \
+        .suit_name = #suit_name_,                                             \
+        .function = test_##suit_name_##_##test_name                           \
+    };                                                                        \
+    _TEST_CASE_SECTION                                                        \
+    const test_intern_TestCase *test_case_ptr_##test_name##_##suit_name =     \
+        &test_case_##test_name##_##suit_name;                                 \
     static void test_##suit_name_##_##test_name(TEST_UNUSED test_intern_TestInfo *_test_info)
 
 #define TEST_MAIN                     \
@@ -89,47 +96,6 @@
         test_exit();                  \
         return 0;                     \
     }
-
-#define _TEST_GET_TYPE(X)                     \
-    _Generic(                                 \
-        (X),                                  \
-        char: test_TypeI8,                    \
-        signed char: test_TypeI8,             \
-        unsigned char: test_TypeU8,           \
-                                              \
-        short: test_TypeI16,                  \
-        short int: test_TypeI16,              \
-        signed short: test_TypeI16,           \
-        signed short int: test_TypeI16,       \
-        unsigned short: test_TypeU16,         \
-        unsigned short int: test_TypeU16,     \
-                                              \
-        int: test_TypeI32,                    \
-        signed: tesT_TypeI32,                 \
-        signed int: tesT_TypeI32,             \
-        unsigned: test_TypeU32,               \
-        unsigned int: test_TypeU32,           \
-                                              \
-        long: test_TypeI32,                   \
-        long int: test_TypeI32,               \
-        signed long: test_TypeI32,            \
-        signed long int: test_TypeI32,        \
-        unsigned long: test_TypeU32,          \
-        unsigned long int: test_TypeU32,      \
-                                              \
-        long long: test_TypeI64,              \
-        long long int: test_TypeI64,          \
-        signed long long: test_TypeI64,       \
-        signed long long int: test_TypeI64,   \
-        unsigned long long: test_TypeU64,     \
-        unsigned long long int: test_TypeU64, \
-                                              \
-        float: test_TypeF32,                  \
-        double: test_TypeF64,                 \
-        char *: test_TypeString,              \
-        void *: test_TypeMemory,              \
-        default: test_TypeCustom,             \
-    )
 
 #define _TEST_CMP(type, lhs, rhs, macro, CMP_FUNC)             \
     do {                                                       \
@@ -178,35 +144,9 @@ typedef enum {
     test_intern_ResultFailed,
 } test_intern_Result;
 
-#define test_intern_TypeCount 17
-typedef enum {
-    test_intern_TypeUnknown,
-    test_intern_TypeMemory,
-    test_intern_TypePointer,
-    test_intern_TypeString,
-
-    test_intern_TypeU8,
-    test_intern_TypeI8,
-    test_intern_TypeU16,
-    test_intern_TypeI16,
-    test_intern_TypeU32,
-    test_intern_TypeI32,
-    test_intern_TypeU64,
-    test_intern_TypeI64,
-    test_intern_TypeU128,
-    test_intern_TypeI128,
-
-    test_intern_TypeF32,
-    test_intern_TypeF64,
-    test_intern_TypeF128,
-} test_intern_Type;
-
 typedef struct {
     struct {
         uint32_t line;
-        test_intern_Type type;
-        char value_rhs_buffer[TEST_VALUE_BUFFER_SIZE];
-        char value_lhs_buffer[TEST_VALUE_BUFFER_SIZE];
         char *macro_value_lhs;
         char *macro_value_rhs;
         char *macro_name;
@@ -230,11 +170,9 @@ typedef struct {
 
 typedef struct {
     char *name;
-    test_intern_TestCase **tests;
-    uint32_t total_tests;
     test_SetupFunction setup_function;
     test_TeardownFunction teardown_function;
-} test_intern_Suit;
+} test_intern_SuitData;
 
 extern bool test_init(int argc, char **argv);
 extern void test_exit(void);
@@ -270,15 +208,16 @@ extern const char *test_option_get_filter(void);
 #if defined(__clang__) || defined(__GNUC__)
 // see:
 // https://stackoverflow.com/questions/16552710/how-do-you-get-the-start-and-end-addresses-of-a-custom-elf-section
-extern test_intern_TestCase __start__test_case_section;
-extern test_intern_TestCase __stop__test_case_section;
-    #define _TEST_START_CASE_SECTION &__start__test_case_section
-    #define _TEST_STOP_CASE_SECTION  &__stop__test_case_section
+extern test_intern_TestCase *__start_test_case_section;
+extern test_intern_TestCase *__stop_test_case_section;
+#define _TEST_START_CASE_SECTION (&__start_test_case_section)
+#define _TEST_STOP_CASE_SECTION (&__stop_test_case_section)
 
-extern test_intern_Suit __start__test_suit_section;
-extern test_intern_Suit __stop__test_suit_section;
-    #define _TEST_START_SUIT_SECTION &__start__test_suit_section
-    #define _TEST_STOP_SUIT_SECTION  &__stop__test_suit_section
+extern test_intern_SuitData *__start_test_suit_section;
+extern test_intern_SuitData *__stop_test_suit_section;
+#define _TEST_START_SUIT_SECTION (&__start_test_suit_section)
+#define _TEST_STOP_SUIT_SECTION (&__stop_test_suit_section)
+
 #else
     #error "Compiler not supported :^("
 #endif
@@ -304,10 +243,16 @@ typedef enum {
     test_intern_StatusContinued,
 } test_intern_Status;
 
+typedef struct {
+    uint32_t test_count;
+    test_intern_TestCase const **test_list;
+    const test_intern_SuitData *suit_data;
+} test_intern_Suit;
+
 static struct {
     uint32_t total_suits;
     uint32_t total_tests;
-    test_intern_Suit **suits;
+    test_intern_Suit *suit_list;
 } test_register = { 0 };
 
 static struct {
@@ -455,7 +400,8 @@ static void test_runner_report(void) {
     );
 }
 
-static void test_runner_run_test(const test_intern_TestCase *test, const test_intern_Suit *suit) {
+static void
+test_runner_run_test(const test_intern_TestCase *test, const test_intern_SuitData *suit) {
     test_intern_assert(test != NULL);
     test_intern_assert(suit != NULL);
 
@@ -509,11 +455,11 @@ static void test_runner_run_test(const test_intern_TestCase *test, const test_in
     test_log_write_with_status(test_intern_StatusResult, "%s\n", result_strings[info.result]);
 }
 
-static void test_runner_run_suit(const test_intern_Suit *suit) {
-    test_intern_assert(suit != NULL);
+static void test_runner_run_suit(const test_intern_Suit *suit_data) {
+    test_intern_assert(suit_data != NULL);
 
-    for (uint32_t i = 0; i < suit->total_tests; i++) {
-        test_runner_run_test(suit->tests[i], suit);
+    for (uint32_t i = 0; i < suit_data->test_count; i++) {
+        test_runner_run_test(suit_data->test_list[i], suit_data->suit_data);
     }
 }
 
@@ -523,31 +469,14 @@ static test_intern_Suit *test_suit_find_by_name(const char *name) {
     test_intern_assert(name != NULL);
 
     for (uint32_t i = 0; i < test_register.total_suits; i++) {
-        test_intern_Suit *suit = test_register.suits[i];
+        test_intern_Suit *suit_data = &test_register.suit_list[i];
 
-        if (strcmp(suit->name, name) == 0) {
-            return suit;
+        if (strcmp(suit_data->suit_data->name, name) == 0) {
+            return suit_data;
         }
     }
 
     return NULL;
-}
-
-static void
-test_format_type(void *buffer, uint32_t buffer_size, test_intern_Type type, void *value) {
-    static char *format[] = {
-        [test_intern_TypeUnknown] = "%p", [test_intern_TypeMemory] = "%p",
-        [test_intern_TypePointer] = "%p", [test_intern_TypeString] = "%s",
-        [test_intern_TypeU8] = "%dhh",    [test_intern_TypeI8] = "%uhh",
-        [test_intern_TypeU16] = "%dh",    [test_intern_TypeI16] = "%uh",
-        [test_intern_TypeU32] = "%d",     [test_intern_TypeI32] = "%u",
-        [test_intern_TypeU64] = "%ull",   [test_intern_TypeI64] = "%dll",
-        [test_intern_TypeU128] = "%uz",   [test_intern_TypeI128] = "%iz",
-        [test_intern_TypeF32] = "%f",     [test_intern_TypeF64] = "%fl",
-        [test_intern_TypeF128] = "%fll",
-    };
-
-    snprintf(buffer, buffer_size, format[type], value);
 }
 
 void test_intern_log_assertion_failed(const test_intern_TestInfo *test_info) {
@@ -592,17 +521,17 @@ bool test_run_case(const char *suit_name, const char *case_name) {
     test_intern_assert(suit_name != NULL);
 
     const test_intern_TestCase *test_case = NULL;
-    const test_intern_Suit *suit = test_suit_find_by_name(suit_name);
+    const test_intern_Suit *suit_data = test_suit_find_by_name(suit_name);
 
-    if (suit == NULL) {
+    if (suit_data == NULL) {
         fprintf(options.output_stream, "test_run_case(): Unable to find suit\n");
         return false;
     }
 
-    for (uint32_t i = 0; i < suit->total_tests; i++) {
-        test_case = suit->tests[i];
+    for (uint32_t i = 0; i < suit_data->test_count; i++) {
+        test_case = suit_data->test_list[i];
         if (strcmp(case_name, test_case->name)) {
-            test_runner_run_test(test_case, suit);
+            test_runner_run_test(test_case, suit_data->suit_data);
 
             return true;
         }
@@ -617,19 +546,19 @@ bool test_run_case(const char *suit_name, const char *case_name) {
 
 bool test_run_suit(const char *name) {
     test_intern_assert(name != NULL);
-    test_intern_Suit *suit = test_suit_find_by_name(name);
+    test_intern_Suit *suit_data = test_suit_find_by_name(name);
 
-    if (suit == NULL) {
+    if (suit_data == NULL) {
         return false;
     }
 
-    test_runner_run_suit(suit);
+    test_runner_run_suit(suit_data);
     return true;
 }
 
 void test_run_all(void) {
     for (uint32_t i = 0; i < test_register.total_suits; i++) {
-        test_runner_run_suit(test_register.suits[i]);
+        test_runner_run_suit(&test_register.suit_list[i]);
     }
 
     test_runner_report();
@@ -637,7 +566,7 @@ void test_run_all(void) {
 
 // Algorithm copied from:
 // http://yucoding.blogspot.com/2013/02/leetcode-question-123-wildcard-matching.html
-static bool test_match_wildcard(char *const match, char *const pattern) {
+TEST_UNUSED static bool test_match_wildcard(char *const match, char *const pattern) {
     char *pattern_seek_ptr = pattern;
     char *match_seek_ptr = match;
     char *star_match_index = NULL;
@@ -798,26 +727,39 @@ bool test_init(int argc, char **argv) {
     memset(&test_register, 0, sizeof(test_register));
 
     // Register all suits
-    uint32_t suit_index = 0;
-    for (test_intern_Suit *suit = _TEST_START_SUIT_SECTION; suit < _TEST_STOP_SUIT_SECTION;
-         suit++) {
-        test_register.suits = test_realloc(
-            test_register.suits, sizeof(test_intern_Suit * [test_register.total_suits + 1])
-        );
+    uintptr_t suit_count = _TEST_STOP_SUIT_SECTION - _TEST_START_SUIT_SECTION;
+    test_intern_assert(suit_count > 0);
+    test_intern_assert(suit_count < (uint32_t)(-1));
 
-        test_register.suits[suit_index++] = suit;
-        test_register.total_suits++;
+    test_register.total_suits = (uint32_t)suit_count;
+    test_register.suit_list = test_calloc(sizeof(test_intern_Suit [suit_count]), 1);
+
+    for(uint32_t suit_index = 0; suit_index < suit_count; suit_index ++) {
+        test_register.suit_list[suit_index].suit_data = _TEST_START_SUIT_SECTION[suit_index];
     }
 
     test_intern_Suit *last_suit = NULL;
     test_intern_Suit *current_suit = NULL;
 
     // Register all cases
-    for (test_intern_TestCase *test_case = _TEST_START_CASE_SECTION;
-         test_case < _TEST_STOP_CASE_SECTION; test_case++) {
+
+    // NOTE: Iteration through cases in the facion shown in the subsequent line causes a runtime error in address sanitizer:
+    // error: load of address 0x64f40a6afa70 with insufficient space for an object of type 'struct test_intern_TestCase *'
+    // The program proceeds to execute as expected. Figure out what is wrong...
+
+    /*uintptr_t case_count = _TEST_STOP_CASE_SECTION - _TEST_START_CASE_SECTION;*/
+    /*test_intern_assert(case_count > 0);*/
+    /*test_intern_assert(case_count < (uint32_t)(-1));*/
+
+    /*for (uint32_t case_index = 0; case_index < case_count; case_index ++) {*/
+        /*const test_intern_TestCase *test_case = _TEST_START_CASE_SECTION[case_index];*/
+
+    for(test_intern_TestCase **test_case_iter = _TEST_START_CASE_SECTION; test_case_iter < _TEST_STOP_CASE_SECTION; test_case_iter ++) {
+        const test_intern_TestCase *test_case = *test_case_iter;
+
         // It is (probably) likely that adjacent tests belong to the same suit
         if ((current_suit == NULL) ||
-            (last_suit != NULL && strcmp(last_suit->name, test_case->suit_name) != 0)) {
+            (last_suit != NULL && strcmp(last_suit->suit_data->name, test_case->suit_name) != 0)) {
             current_suit = test_suit_find_by_name(test_case->suit_name);
         }
 
@@ -829,12 +771,12 @@ bool test_init(int argc, char **argv) {
             return false;
         }
 
-        current_suit->tests = test_realloc(
-            current_suit->tests, sizeof(test_intern_TestCase * [current_suit->total_tests + 1])
+        current_suit->test_list = test_realloc(
+            current_suit->test_list, sizeof(test_intern_TestCase * [current_suit->test_count + 1])
         );
 
-        current_suit->tests[current_suit->total_tests] = test_case;
-        current_suit->total_tests++;
+        current_suit->test_list[current_suit->test_count] = test_case;
+        current_suit->test_count++;
         test_register.total_tests++;
         last_suit = current_suit;
     }
@@ -850,10 +792,10 @@ void test_exit(void) {
     test_log_free();
 
     for (uint32_t i = 0; i < test_register.total_suits; i++) {
-        free(test_register.suits[i]->tests);
+        free(test_register.suit_list[i].test_list);
     }
 
-    free(test_register.suits);
+    free(test_register.suit_list);
 }
 
 #endif
