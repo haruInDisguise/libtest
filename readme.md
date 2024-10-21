@@ -4,22 +4,25 @@ Yet another tiny unit testing framework for C.
 
 ## Features
 
-- This framework follows the [xUnit](https://en.wikipedia.org/wiki/XUnit) unit testing style
-    - Every test case is part of a suit, that can define a 'setup' and 'teardown' function. They are invoked before and after every test case respectively.
-- Header only, STB style library
+- [xUnit](https://en.wikipedia.org/wiki/XUnit) unit testing style
+    - Every test case is part of a suit, that can define a 'setup' and 'teardown' function.
+- Header only, [STB style](https://github.com/nothings/stb) library
 - Automatic test/suit registration
-- Useful runtime flags: Colored output, filters, logging to a file, ...
-- Simplicity. This library is lightweight and should (hopefully) be easily extendable/hackable.
+- Filter tests/suits using basic glob patterns
+- Lightweight and should (hopefully) be easily extendable/hackable.
 
-## TODO
-[ ] Timing related information
+Planned features:
+
+- Timing related information
 
 ## Usage
 
-Since this is an STB style, header only library, you can just include the test header directly.
-Note that the ```TEST_IMPLEMENATION``` macro must only be defined inside the source file that contains your
-projects entry point.
-For example:
+Since this is an STB style library, meaning you can just include the test header directly.
+The ```TEST_IMPLEMENATION``` macro must only be defined in a single source file.
+
+At least one suit and test case must be defined. Failure to do so will result in a linker error.
+
+A usage pattern could look like the following:
 
 ```c
 /* file: main.c */
@@ -27,7 +30,10 @@ For example:
 #include <test/test.h>
 
 int main(int argc, char **argv) {
-    test_setup(argc, argv);
+    if(!test_setup(argc, argv)) {
+        return false;
+    }
+
     test_run_all();
     test_exit();
 }
@@ -49,6 +55,42 @@ TEST(example_suit, test_one) {
     char *some_string = "Hello";
     assert_eq("Hello", some_string);
 }
+```
+
+To compile this is example, you would write:
+```
+cc -Iinclude/test main.c test_stuff.c -o <binary_name>
+```
+
+The resulting binary accepts the following options:
+```
+Usage
+      <test_binary> [OPTIONS] ... -- [ARGS]
+
+ARGS
+      Arguments that will be ignored by this library
+
+OPTIONS
+      The binary build with this library accepts the following options:
+
+      --help
+        Display this message
+
+      --list
+        Print all registered test cases. Respectes filters.
+
+      --filter <filters>
+        A list of filter patterns to selectively execute tests/suits.
+        Patterns can contain '*' (matches zero or more characters),
+        '?' (matches a single character) or the following characters:
+            A-Z, a-z, 0-9, ':', '_'
+        To specify multiple patterns, separated them by commas.
+
+      --output <file>
+        Redirect library output to a new file.
+
+      --colored (auto|always|never)
+        Colorize the output.
 ```
 
 ## Resouces
