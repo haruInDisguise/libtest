@@ -1,14 +1,12 @@
 CC ?= clang
 
 BUILD_CONFIG ?= debug
-# In release builds, this option has no effect
 BUILD_ASAN ?= true
-
 BUILD_PATH = build
 
-CFLAGS = -std=c17 -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -Wpedantic \
+CFLAGS += -std=c99 -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-function -Wpedantic \
 		 -Iinclude
-LFLAGS =
+LFLAGS +=
 
 ifeq ($(BUILD_CONFIG), debug)
 
@@ -19,14 +17,15 @@ endif
 
 CFLAGS += -O0 -g3 -DTEST_DEBUG
 else
-CFLAGS += -O2
+CFLAGS += -Os
+LFLAGS +=
 endif
 
 TEST_SRC = test/main.c test/test_assert.c
 TEST_OBJ := $(patsubst %.c,$(BUILD_PATH)/%.o,$(TEST_SRC))
 
-test: $(TEST_OBJ)
-	$(CC) $(LFLAGS) $(TEST_OBJ) -o build/main
+test: $(TEST_OBJ) ./include/test/test.h
+	$(CC) $(LFLAGS) $(TEST_OBJ) -o build/test
 
 dev: clean
 	@mkdir -p $(BUILD_PATH)
@@ -38,6 +37,6 @@ clean:
 .PHONY: clean test dev
 .SUFFIXES:
 
-$(TEST_OBJ): $(BUILD_PATH)/%.o: %.c include/test/test.h
+$(TEST_OBJ): $(BUILD_PATH)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CFLAGS) $< -o $@

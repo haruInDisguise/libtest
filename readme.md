@@ -6,35 +6,33 @@ Yet another tiny unit testing framework for C.
 
 - This framework follows the [xUnit](https://en.wikipedia.org/wiki/XUnit) unit testing style
     - Every test case is part of a suit, that can define a 'setup' and 'teardown' function. They are invoked before and after every test case respectively.
+- Header only, STB style library
 - Automatic test/suit registration
-- Assertions: When an assertion fails, the affected test case fails
-- Checks: When a check fails, execution continues and the failure gets printed
-- Detailed logging of failed assertions/checks
-- Detailed test results
-- Simplicity. This library is very lightweight and should (hopefully) be easily extendable/hackable.
+- Useful runtime flags: Colored output, filters, logging to a file, ...
+- Simplicity. This library is lightweight and should (hopefully) be easily extendable/hackable.
 
 ## TODO
-[ ] Colored output
-[ ] Logging to a file/custom stream, instead of stdout/stderr
-[ ] Fully implement the possibility to skip individual tests/suits
 [ ] Timing related information
-[ ] "What does a uint testing framework really need?" i.e. the percentage of partially successful tests is not that interesting?
 
-## Building
+## Usage
 
-The library currently only supports linux, but adding support for other platforms should be relatively easy.
-Just run '''make''' to build. This will create a static library under the '''build''' directory, and execute and any
-tests.
-Build and linking example:
+Since this is an STB style, header only library, you can just include the test header directly.
+Note that the ```TEST_IMPLEMENATION``` macro must only be defined inside the source file that contains your
+projects entry point.
+For example:
 
-``` bash
-make
-clang -Iinclude main.c build/libtest.a -o run_tests
-```
+```c
+/* file: main.c */
+#define TEST_IMPLEMENTATION
+#include <test/test.h>
 
-## Getting started
+int main(int argc, char **argv) {
+    test_setup(argc, argv);
+    test_run_all();
+    test_exit();
+}
 
-``` c
+/* file: test_stuff.c */
 #include <test/test.h>
 
 void example_setup(void) {
@@ -51,8 +49,6 @@ TEST(example_suit, test_one) {
     char *some_string = "Hello";
     assert_eq("Hello", some_string);
 }
-
-TEST_MAIN
 ```
 
 ## Resouces
