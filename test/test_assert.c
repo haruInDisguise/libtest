@@ -1,28 +1,43 @@
 #include <test/test.h>
 
-SUIT(assert, NULL, NULL);
-
-TEST(assert, assert_eq) {
-    int value_one = 5;
-    do {
-        if (!((value_one) == (5))) {
-            _test_info->assertion_info.line = 7;
-            _test_info->assertion_info.macro_name = "assert_eq";
-            _test_info->assertion_info.macro_value_lhs = "value_one";
-            _test_info->assertion_info.macro_value_rhs = "5";
-            _test_info->result = test_intern_ResultFailed;
-            test_intern_log_assertion_failed(_test_info);
-        }
-    } while (0);
-
-    char *str_one = "what...";
-
-    test_assert_string_eq("what...", str_one);
-    test_assert_string_ne("no", str_one);
+SUIT(testing, NULL, NULL);
+TEST(testing, string) {
+    test_assert_string_eq("what", "what");
+    test_assert_string_ne("what", "not what");
 }
 
-TEST(assert, something_strange) {
-    char *not_so_amazing_string = "this message is not the same";
+TEST(testing, generic) {
+    test_assert(1 == 1);
+    test_assert(1 != 2);
 
-    test_assert_string_eq("what", not_so_amazing_string);
+    test_assert_eq(1, 1);
+    test_assert_ne(1, 2);
+
+    int value_one = 1;
+    int value_two = 2;
+    int value_three = 3;
+
+    test_assert(value_one < value_two);
+    test_assert(value_three > value_two);
+
+    test_assert_eq(value_one, value_two - 1);
+    test_assert_ne(value_three, value_two);
+}
+
+TEST(testing, memory) {
+    int buffer_one[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    int buffer_two[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    int buffer_three[8] = {234, 53, 23465, 234};
+
+    test_assert_memory_eq(buffer_one, buffer_two, sizeof(buffer_one));
+    test_assert_memory_ne(buffer_one, buffer_three, sizeof(buffer_one));
+}
+
+SUIT(testing_false, NULL, NULL);
+TEST(testing_false, one_eq_two) {
+    test_assert(1 == 2);
+}
+
+TEST(testing_false, string_ne) {
+    test_assert_string_eq("hello", "goodbye");
 }

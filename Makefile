@@ -25,7 +25,7 @@ TEST_SRC = test/main.c test/test_assert.c
 TEST_OBJ := $(patsubst %.c,$(BUILD_PATH)/%.o,$(TEST_SRC))
 
 test: $(TEST_OBJ) ./include/test/test.h
-	$(CC) $(LFLAGS) $(TEST_OBJ) -o build/test
+	$(CC) $(LFLAGS) $(TEST_OBJ) -o build/main
 
 dev: clean
 	@mkdir -p $(BUILD_PATH)

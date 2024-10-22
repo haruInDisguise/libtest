@@ -1,17 +1,6 @@
 #ifndef TEST_H_
 #define TEST_H_
 
-/// # ```test``` - yet another unit testing framework
-///
-/// This library implements a small [stb style](https://github.com/nothings/stb) unit testing
-/// framework that tries to be small and easy to use and/or hack.
-///
-/// ## Features
-///
-/// - Lightweight and easy to use (hopefully)
-/// - [xUnit](https://en.wikipedia.org/wiki/XUnit) inspired framework
-/// - Automatic test registration
-
 #define _GNU_SOURCE /* fileno() */
 
 #include <stdbool.h>
@@ -40,8 +29,8 @@
 #endif // TEST_DEBUG
 
 #if defined(__clang__) || defined(__GNUC__)
-    #define TEST_CASE_SECTION __attribute__((used, section("test_case_section")))
-    #define TEST_SUIT_SECTION __attribute__((used, section("test_suit_section")))
+    #define TEST_CASE_SECTION __attribute__((used, aligned(8), section("test_case_section")))
+    #define TEST_SUIT_SECTION __attribute__((used, aligned(8), section("test_suit_section")))
     #define TEST_UNUSED       __attribute__((unused))
 #else
     #error "Compiler not supported :^("
@@ -78,30 +67,34 @@
 /// Macro for creating a new test case.
 /// @param suit_name The name of the suit this test case should be added to.
 /// @param test_name The name of this test case
-#define TEST(suit_name_, test_name)                                           \
-    static void test_##suit_name_##_##test_name(test_intern_TestInfo *_info); \
-    static const test_intern_TestCase test_case_##test_name##_##suit_name = { \
-        .name = #test_name,                                                   \
-        .line = __LINE__,                                                     \
-        .file_name = __FILE__,                                                \
-        .suit_name = #suit_name_,                                             \
-        .function = test_##suit_name_##_##test_name                           \
-    };                                                                        \
-    TEST_CASE_SECTION                                                         \
-    const test_intern_TestCase *test_case_ptr_##test_name##_##suit_name =     \
-        &test_case_##test_name##_##suit_name;                                 \
-    static void test_##suit_name_##_##test_name(TEST_UNUSED test_intern_TestInfo *_test_info)
+#define TEST(suit_name_, test_name)                                            \
+    static void test_##suit_name_##_##test_name(test_intern_Result *_result);  \
+    static const test_intern_TestCase test_case_##test_name##_##suit_name_ = { \
+        .name = #test_name,                                                    \
+        .line = __LINE__,                                                      \
+        .file_name = __FILE__,                                                 \
+        .suit_name = #suit_name_,                                              \
+        .function = test_##suit_name_##_##test_name                            \
+    };                                                                         \
+    TEST_CASE_SECTION                                                          \
+    const test_intern_TestCase *test_case_ptr_##test_name##_##suit_name_ =     \
+        &test_case_##test_name##_##suit_name_;                                 \
+    static void test_##suit_name_##_##test_name(TEST_UNUSED test_intern_Result *_result)
 
-#define TEST_CMP(type, lhs, rhs, macro, CMP_FUNC)              \
-    do {                                                       \
-        if (!CMP_FUNC(lhs, rhs)) {                             \
-            _test_info->assertion_info.line = __LINE__;        \
-            _test_info->assertion_info.macro_name = #macro;    \
-            _test_info->assertion_info.macro_value_lhs = #lhs; \
-            _test_info->assertion_info.macro_value_rhs = #rhs; \
-            _test_info->result = test_intern_ResultFailed;     \
-            test_intern_log_assertion_failed(_test_info);      \
-        }                                                      \
+#define TEST_CMP(type, lhs, rhs, macro, CMP_FUNC)                                       \
+    do {                                                                                \
+        if (!CMP_FUNC(lhs, rhs)) {                                                      \
+            (*_result) = test_intern_ResultFailed;                                      \
+            test_log_write("failed at %d: " #macro "(" #lhs ", " #rhs "): ", __LINE__); \
+        }                                                                               \
+    } while (0)
+
+#define TEST_CMP_MEM(type, lhs, rhs, size, macro, CMP_FUNC)                             \
+    do {                                                                                \
+        if (!CMP_FUNC(lhs, rhs, size)) {                                                \
+            (*_result) = test_intern_ResultFailed;                                      \
+            test_log_write("failed at %d: " #macro "(" #lhs ", " #rhs "): ", __LINE__); \
+        }                                                                               \
     } while (0)
 
 // clang-format off
@@ -125,10 +118,10 @@
 #define test_assert_ne(lhs, rhs)         TEST_CMP(test_TypeCustom, lhs, rhs, assert_ne, TEST_CMP_NE)
 
 #define test_assert_string_eq(lhs, rhs)         TEST_CMP(test_TypeCString, lhs, rhs, assert_str_eq, TEST_CMP_STR_EQ)
-#define test_assert_string_ne(lhs, rhs)         TEST_CMP(test_TypeCString, lhs, rhs, assert_str_ne,TEST_CMP_STR_NE)
+#define test_assert_string_ne(lhs, rhs)         TEST_CMP(test_TypeCString, lhs, rhs, assert_str_ne, TEST_CMP_STR_NE)
 
-#define test_assert_memory_eq(lhs, rhs, size)   TEST_CMP(test_TypeMemory, lhs, rhs, assert_str_eq, TEST_CMP_MEM_EQ)
-#define test_assert_memory_ne(lhs, rhs, size)   TEST_CMP(test_TypeMemory, lhs, rhs, assert_str_ne,TEST_CMP_MEM_NE)
+#define test_assert_memory_eq(lhs, rhs, size)         TEST_CMP_MEM(test_TypeCString, lhs, rhs, size, assert_str_eq, TEST_CMP_MEM_EQ)
+#define test_assert_memory_ne(lhs, rhs, size)         TEST_CMP_MEM(test_TypeCString, lhs, rhs, size, assert_str_ne, TEST_CMP_MEM_NE)
 // clang-format on
 
 #define test_intern_ResultCount 4
@@ -139,19 +132,7 @@ typedef enum {
     test_intern_ResultFailed,
 } test_intern_Result;
 
-typedef struct {
-    struct {
-        uint32_t line;
-        char *macro_value_lhs;
-        char *macro_value_rhs;
-        char *macro_name;
-    } assertion_info;
-
-    bool is_verbose;
-    test_intern_Result result;
-} test_intern_TestInfo;
-
-typedef void (*test_TestFunction)(test_intern_TestInfo *_test_info);
+typedef void (*test_TestFunction)(test_intern_Result *_state);
 typedef void (*test_SetupFunction)(void);
 typedef void (*test_TeardownFunction)(void);
 
@@ -169,20 +150,18 @@ typedef struct {
     test_TeardownFunction teardown_function;
 } test_intern_SuitData;
 
+/// Initialize the testing framework
 extern bool test_init(int argc, char **argv);
 extern void test_exit(void);
 
-extern void test_intern_log_assertion_failed(const test_intern_TestInfo *info);
+/// Used internally. Write to the libraries log buffer. Used in TEST(...) macro
+__attribute__((format(printf, 1, 2))) extern void test_log_write(const char *format, ...);
 
 // TODO: Implement manual test registration
 /*extern bool test_register_suit(char *name, test_SetupFunction setup_func, test_TeardownFunction
  * teardown_func);*/
 /*extern bool test_register_case(char *suit_name, char *test_name, test_TestFunction func);*/
 
-/// Run all tests belonging to suit <name>. Ignores filters
-extern bool test_run_suit(const char *name);
-/// Run the specific test, given its suit and case name. Ignores filters
-extern bool test_run_case(const char *suit_name, const char *case_name);
 /// Run all tests, respecting filters specified on the commandline
 extern void test_run_all(void);
 
@@ -198,26 +177,27 @@ extern void test_run_all(void);
 #include <string.h> /* sterror, strcmp, memset */
 #include <unistd.h> /* isatty */
 
-#include <ctype.h>  /* isalnum */
+#include <ctype.h> /* isalnum */
 
 #if defined(__clang__) || defined(__GNUC__)
 // see:
 // https://stackoverflow.com/questions/16552710/how-do-you-get-the-start-and-end-addresses-of-a-custom-elf-section
 extern test_intern_TestCase *__start_test_case_section;
 extern test_intern_TestCase *__stop_test_case_section;
-    #define TEST_START_CASE_SECTION (&__start_test_case_section)
-    #define TEST_STOP_CASE_SECTION  (&__stop_test_case_section)
+    #define TEST_START_CASE_SECTION (__start_test_case_section)
+    #define TEST_STOP_CASE_SECTION  (__stop_test_case_section)
 
 extern test_intern_SuitData *__start_test_suit_section;
 extern test_intern_SuitData *__stop_test_suit_section;
-    #define TEST_START_SUIT_SECTION (&__start_test_suit_section)
-    #define TEST_STOP_SUIT_SECTION  (&__stop_test_suit_section)
+    #define TEST_START_SUIT_SECTION (__start_test_suit_section)
+    #define TEST_STOP_SUIT_SECTION  (__stop_test_suit_section)
 
 #else
     #error "Compiler not supported :^("
 #endif
 
 #define COLOR_RESET  "\033[0m"
+#define COLOR_DIM    "\033[2m"
 #define COLOR_RED    "\033[31m"
 #define COLOR_GREEN  "\033[32m"
 #define COLOR_YELLOW "\033[33m"
@@ -237,6 +217,7 @@ static struct {
 
 static struct {
     uint32_t tests_successful;
+    uint32_t tests_attempted;
     uint32_t tests_failed;
     uint32_t tests_partially;
     uint32_t tests_skipped;
@@ -295,7 +276,7 @@ static inline void *test_calloc(uint64_t nmem, uint64_t smem) {
 
 static inline void test_log_clear(void) { log_data.offset = 0; }
 
-__attribute__((format(printf, 1, 2))) static void test_log_write(const char *format, ...) {
+__attribute__((format(printf, 1, 2))) void test_log_write(const char *format, ...) {
     test_intern_assert(format != NULL);
 
     va_list args;
@@ -325,11 +306,11 @@ static void test_runner_report(void) {
                                    ? (test_runner.tests_partially * 100 / test_register.total_tests)
                                    : 0;
 
-    test_log_write("[ REPORT  ] === Results for %d tests ===\n", test_register.total_tests);
-    test_log_write("[ ------- ] Successful: %u - %3u%%\n", test_runner.tests_successful, success_percent);
-    test_log_write("[ ------- ] Failed    : %u - %3u%%\n", test_runner.tests_failed, failed_percent);
-    test_log_write("[ ------- ] Partially : %u - %3u%%\n", test_runner.tests_partially, partial_percent);
-    test_log_write("[ ------- ] Skipped   : %u - %3u%%\n", test_runner.tests_skipped, skipped_percent);
+    test_log_write("attempted to run %d out of %d tests\n", test_runner.tests_attempted, test_register.total_tests);
+    test_log_write("successful: %u - %3u%%\n", test_runner.tests_successful, success_percent);
+    test_log_write("failed    : %u - %3u%%\n", test_runner.tests_failed, failed_percent);
+    test_log_write("partially : %u - %3u%%\n", test_runner.tests_partially, partial_percent);
+    test_log_write("skipped   : %u - %3u%%\n", test_runner.tests_skipped, skipped_percent);
 }
 
 static void
@@ -337,23 +318,25 @@ test_runner_run_test(const test_intern_TestCase *test, const test_intern_SuitDat
     test_intern_assert(test != NULL);
     test_intern_assert(suit != NULL);
 
-    test_intern_TestInfo info = { .result = test_intern_ResultOk };
-
-    test_log_write("[ RUNNING ] %s => %s:%s\n", test->file_name, suit->name, test->name);
+    test_log_write(
+        "%s%s @ %d running '%s:%s':%s ", (options.colored) ? COLOR_DIM : "", test->file_name,
+        test->line, suit->name, test->name, (options.colored) ? COLOR_RESET : ""
+    );
 
     if (suit->setup_function != NULL) {
         suit->setup_function();
     }
 
-    test->function(&info);
-
-    test_intern_assert(info.result < test_intern_ResultCount);
+    test_intern_Result result = test_intern_ResultOk;
+    test->function(&result);
 
     if (suit->teardown_function != NULL) {
         suit->teardown_function();
     }
 
-    switch (info.result) {
+    test_runner.tests_attempted++;
+
+    switch (result) {
     case test_intern_ResultOk:
         test_runner.tests_successful++;
         break;
@@ -369,20 +352,20 @@ test_runner_run_test(const test_intern_TestCase *test, const test_intern_SuitDat
     }
 
     static const char *result_strings_colored[] = {
-        [test_intern_ResultOk] = COLOR_GREEN "OK" COLOR_RESET,
-        [test_intern_ResultPartiallyOk] = COLOR_YELLOW "PARTIALLY OK" COLOR_RESET,
-        [test_intern_ResultSkipped] = COLOR_CYAN "SKIPPED" COLOR_RESET,
-        [test_intern_ResultFailed] = COLOR_RED "FAILED" COLOR_RESET,
+        [test_intern_ResultOk] = COLOR_GREEN "ok" COLOR_RESET,
+        [test_intern_ResultPartiallyOk] = COLOR_YELLOW "partially ok" COLOR_RESET,
+        [test_intern_ResultSkipped] = COLOR_CYAN "skipped" COLOR_RESET,
+        [test_intern_ResultFailed] = COLOR_RED "failed" COLOR_RESET,
     };
     static const char *result_strings_blank[] = {
-        [test_intern_ResultOk] = "OK",
-        [test_intern_ResultPartiallyOk] = "PARTIALLY OK",
-        [test_intern_ResultSkipped] = "SKIPPED",
-        [test_intern_ResultFailed] = "FAILED",
+        [test_intern_ResultOk] = "ok",
+        [test_intern_ResultPartiallyOk] = "partially ok",
+        [test_intern_ResultSkipped] = "skipped",
+        [test_intern_ResultFailed] = "failed",
     };
 
-    const char **result_strings = options.colored ? result_strings_colored : result_strings_blank;
-    test_log_write("[ RESULT  ] %s\n", result_strings[info.result]);
+    const char **result_strings = (options.colored) ? result_strings_colored : result_strings_blank;
+    test_log_write("%s\n", result_strings[result]);
 }
 
 static void test_runner_run_suit(const test_intern_Suit *suit_data) {
@@ -407,23 +390,6 @@ static test_intern_Suit *test_suit_find_by_name(const char *name) {
     return NULL;
 }
 
-void test_intern_log_assertion_failed(const test_intern_TestInfo *test_info) {
-    test_intern_assert(test_info != NULL);
-
-    const char *value_one_macro = test_info->assertion_info.macro_value_lhs;
-    const char *value_two_macro = test_info->assertion_info.macro_value_rhs;
-    const char *macro_name = test_info->assertion_info.macro_name;
-    const uint32_t line = test_info->assertion_info.line;
-
-    const char *message_prefix =
-        test_info->result == test_intern_ResultFailed ? "assertion failed" : "check failed";
-
-    test_log_write(
-        "[ ------- ] %s @ %d: %s(%s, %s)\n", message_prefix, line, macro_name, value_one_macro,
-        value_two_macro
-    );
-}
-
 // TODO: Implement manual suit registration
 bool test_register_suit(
     char *name, test_SetupFunction setup_func, test_TeardownFunction teardown_func
@@ -441,34 +407,6 @@ bool test_register_case(char *suit_name, char *test_name, test_TestFunction func
     (void)test_name;
     (void)func;
 
-    return false;
-}
-
-bool test_run_case(const char *suit_name, const char *case_name) {
-    test_intern_assert(case_name != NULL);
-    test_intern_assert(suit_name != NULL);
-
-    const test_intern_TestCase *test_case = NULL;
-    const test_intern_Suit *suit_data = test_suit_find_by_name(suit_name);
-
-    if (suit_data == NULL) {
-        fprintf(options.output_stream, "test_run_case(): Unable to find suit\n");
-        return false;
-    }
-
-    for (uint32_t i = 0; i < suit_data->test_count; i++) {
-        test_case = suit_data->test_list[i];
-        if (strcmp(case_name, test_case->name)) {
-            test_runner_run_test(test_case, suit_data->suit_data);
-
-            return true;
-        }
-    }
-
-    fprintf(
-        options.output_stream, "test_run_case(): Unable to find test \"%s\" in suit \"%s\"",
-        case_name, suit_name
-    );
     return false;
 }
 
@@ -517,7 +455,7 @@ static bool test_wildcard_match(const char *text, const char *pattern) {
 }
 
 static bool test_filter_case(const char *suit_name, const char *test_name) {
-    static char name_buffer[256] = { 0 };
+    static char name_buffer[TEST_FILTER_SIZE_LIMIT] = { 0 };
     memset(name_buffer, 0, sizeof(name_buffer));
 
     if (strlen(suit_name) + strlen(test_name) + 1 > TEST_FILTER_SIZE_LIMIT) {
@@ -756,7 +694,7 @@ bool test_init(int argc, char **argv) {
         return false;
     }
 
-    if(options.show_help) {
+    if (options.show_help) {
         print_help();
         return false;
     }
@@ -770,7 +708,7 @@ bool test_init(int argc, char **argv) {
     memset(&test_register, 0, sizeof(test_register));
 
     // Register all suits
-    uintptr_t suit_count = TEST_STOP_SUIT_SECTION - TEST_START_SUIT_SECTION;
+    uintptr_t suit_count = &TEST_STOP_SUIT_SECTION - &TEST_START_SUIT_SECTION;
     test_intern_assert(suit_count > 0);
     test_intern_assert(suit_count < (uint32_t)(-1));
 
@@ -779,15 +717,19 @@ bool test_init(int argc, char **argv) {
 
     // Register all suits
     for (uint32_t suit_index = 0; suit_index < suit_count; suit_index++) {
-        test_register.suit_list[suit_index].suit_data = TEST_START_SUIT_SECTION[suit_index];
+        // FIXME: When compiling with GCC-14, UBSan reports: runtime error: load of address
+        // <address> with insufficient space for an object of type 'struct test_intern_SuitData *'
+        // <address> is the (correct) address of an object of type 'test_intern_SuitData', as is
+        // expected.
+        test_register.suit_list[suit_index].suit_data = (&TEST_START_SUIT_SECTION)[suit_index];
     }
 
     test_intern_Suit *last_suit = NULL;
     test_intern_Suit *current_suit = NULL;
 
     // Register all cases
-    for (test_intern_TestCase **test_case_iter = TEST_START_CASE_SECTION;
-         test_case_iter < TEST_STOP_CASE_SECTION; test_case_iter++) {
+    for (test_intern_TestCase **test_case_iter = &TEST_START_CASE_SECTION;
+         test_case_iter < &TEST_STOP_CASE_SECTION; test_case_iter++) {
         const test_intern_TestCase *test_case = *test_case_iter;
 
         // It is (probably) likely that adjacent tests belong to the same suit
