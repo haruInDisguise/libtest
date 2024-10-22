@@ -40,4 +40,6 @@ TEST(testing_false, one_eq_two) {
 
 TEST(testing_false, string_ne) {
     test_assert_string_eq("hello", "goodbye");
+    test_assert_string_eq("hello", "goodbye");
+    test_assert_string_eq("hello", "goodbye");
 }

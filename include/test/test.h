@@ -86,6 +86,7 @@
         if (!CMP_FUNC(lhs, rhs)) {                                                      \
             (*_result) = test_intern_ResultFailed;                                      \
             test_log_write("failed at %d: " #macro "(" #lhs ", " #rhs "): ", __LINE__); \
+            return;                                                                     \
         }                                                                               \
     } while (0)
 
@@ -94,6 +95,7 @@
         if (!CMP_FUNC(lhs, rhs, size)) {                                                \
             (*_result) = test_intern_ResultFailed;                                      \
             test_log_write("failed at %d: " #macro "(" #lhs ", " #rhs "): ", __LINE__); \
+            return;                                                                     \
         }                                                                               \
     } while (0)
 
@@ -306,7 +308,10 @@ static void test_runner_report(void) {
                                    ? (test_runner.tests_partially * 100 / test_register.total_tests)
                                    : 0;
 
-    test_log_write("attempted to run %d out of %d tests\n", test_runner.tests_attempted, test_register.total_tests);
+    test_log_write(
+        "attempted to run %d out of %d tests\n", test_runner.tests_attempted,
+        test_register.total_tests
+    );
     test_log_write("successful: %u - %3u%%\n", test_runner.tests_successful, success_percent);
     test_log_write("failed    : %u - %3u%%\n", test_runner.tests_failed, failed_percent);
     test_log_write("partially : %u - %3u%%\n", test_runner.tests_partially, partial_percent);
