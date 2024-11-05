@@ -9,9 +9,10 @@ CFLAGS += -std=c99 -Wall -Wextra -Wconversion -Wno-sign-conversion -Wno-unused-f
 LFLAGS +=
 
 ifeq ($(BUILD_CONFIG), debug)
+CFLAGS += -gdwarf-5
 
 ifeq ($(BUILD_ASAN), true)
-CFLAGS += -fsanitize=address,undefined
+CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer
 LFLAGS += -fsanitize=address,undefined
 endif
 

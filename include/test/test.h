@@ -373,6 +373,7 @@ test_runner_run_test(const test_intern_TestCase *test, const test_intern_SuitDat
     test_log_write("%s\n", result_strings[result]);
 }
 
+TEST_UNUSED
 static void test_runner_run_suit(const test_intern_Suit *suit_data) {
     test_intern_assert(suit_data != NULL);
 
@@ -721,12 +722,9 @@ bool test_init(int argc, char **argv) {
     test_register.suit_list = test_calloc(sizeof(test_intern_Suit[suit_count]), 1);
 
     // Register all suits
-    for (uint32_t suit_index = 0; suit_index < suit_count; suit_index++) {
-        // FIXME: When compiling with GCC-14, UBSan reports: runtime error: load of address
-        // <address> with insufficient space for an object of type 'struct test_intern_SuitData *'
-        // <address> is the (correct) address of an object of type 'test_intern_SuitData', as is
-        // expected.
-        test_register.suit_list[suit_index].suit_data = (&TEST_START_SUIT_SECTION)[suit_index];
+    uint32_t suit_index = 0;
+    for (test_intern_SuitData **suit_data_iter = &TEST_START_SUIT_SECTION; suit_data_iter < &TEST_STOP_SUIT_SECTION; suit_data_iter++) {
+        test_register.suit_list[suit_index++].suit_data = *suit_data_iter;
     }
 
     test_intern_Suit *last_suit = NULL;
