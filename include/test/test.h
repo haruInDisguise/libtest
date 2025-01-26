@@ -486,14 +486,15 @@ void test_run_all(void) {
         test_intern_Suit *suit = &test_register.suit_list[i];
 
         for (uint32_t i = 0; i < suit->test_count; i++) {
-            bool is_match = test_filter_case(suit->suit_data->name, suit->test_list[i]->name);
-
-            if (!is_match) {
-                test_runner.tests_skipped++;
+            bool is_match = true;
+            if(options.filter_pattern_count > 0) {
+                is_match = test_filter_case(suit->suit_data->name, suit->test_list[i]->name);
             }
 
-            if (options.filter_pattern_count == 0 || is_match) {
+            if (is_match) {
                 test_runner_run_test(suit->test_list[i], suit->suit_data);
+            } else {
+                test_runner.tests_skipped++;
             }
         }
     }
